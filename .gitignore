@@ -47,9 +47,10 @@ Thumbs.db
 .pre-commit-config.yaml
 .terraform-docs.yml
 CONTRIBUTING.md
-deployment-summary.md
-project-structure.md
-quickstart.md
-readme.md
+DEPLOYMENT_SUMMARY.md
+PROJECT_STRUCTURE.md
+QUICKSTART.md
+README.md
 scripts/
+
 
