@@ -44,3 +44,12 @@ Thumbs.db
 # Lock files (optional - some teams commit this)
 # .terraform.lock.hcl
 
+.pre-commit-config.yaml
+.terraform-docs.yml
+CONTRIBUTING.md
+deployment-summary.md
+project-structure.md
+quickstart.md
+readme.md
+scripts/
+
