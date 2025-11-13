@@ -41,6 +41,7 @@ jobs:
           - env: prod
             account_id: ${{ secrets.AWS_ACCOUNT_ID_PROD }}
             role_name: TerraformProdRole
+    if: github.event_name != 'workflow_dispatch' || matrix.env == github.event.inputs.environment
 
     steps:
       - name: Checkout code
