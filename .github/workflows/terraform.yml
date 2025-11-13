@@ -62,7 +62,6 @@ jobs:
           aws-region: us-east-1
 
       - name: Setup Terraform
-        if: github.event_name != 'workflow_dispatch' || matrix.env == github.event.inputs.environment
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.5.0
