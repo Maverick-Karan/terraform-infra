@@ -16,9 +16,16 @@ permissions:
   contents: read
 
 jobs:
-  terraform-prod:
+  precheck:
     runs-on: ubuntu-latest
     environment: production
+    steps:
+      - name: Confirm approval gate
+        run: echo "Environment approved, continuing…"
+
+  terraform-prod:
+    needs: precheck
+    runs-on: ubuntu-latest
 
     env:
       ENV_NAME: prod
