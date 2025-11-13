@@ -32,14 +32,16 @@ permissions:
 jobs:
   terraform:
     runs-on: ubuntu-latest
+    env:
+      AWS_ACCOUNT_ID_DEV: ${{ secrets.AWS_ACCOUNT_ID_DEV }}
+      AWS_ACCOUNT_ID_PROD: ${{ secrets.AWS_ACCOUNT_ID_PROD }}
+
     strategy:
       matrix:
         include:
           - env: dev
-            account_id: ${{ secrets.AWS_ACCOUNT_ID_DEV }}
             role_name: TerraformDevRole
           - env: prod
-            account_id: ${{ secrets.AWS_ACCOUNT_ID_PROD }}
             role_name: TerraformProdRole
     if: github.event_name != 'workflow_dispatch' || matrix.env == github.event.inputs.environment
 
@@ -50,7 +52,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ matrix.account_id }}:role/${{ matrix.role_name }}
+          role-to-assume: arn:aws:iam::${{ matrix.env == 'dev' && env.AWS_ACCOUNT_ID_DEV || env.AWS_ACCOUNT_ID_PROD }}:role/${{ matrix.role_name }}
           aws-region: us-east-1
 
       - name: Setup Terraform
