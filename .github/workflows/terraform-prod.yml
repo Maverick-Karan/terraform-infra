@@ -18,7 +18,6 @@ permissions:
 jobs:
   terraform-prod:
     runs-on: ubuntu-latest
-    environment: production
 
     env:
       ENV_NAME: prod
