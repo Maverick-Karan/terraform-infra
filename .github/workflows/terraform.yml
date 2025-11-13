@@ -66,6 +66,18 @@ jobs:
         with:
           terraform_version: 1.5.0
 
+      - name: Debug working directory
+        run: |
+          echo "PWD: $(pwd)"
+          echo "Contents:"
+          ls -R
+
+      - name: Verify tfvars file exists
+        working-directory: envs/${{ matrix.env }}
+        run: |
+          echo "Looking for ${{ matrix.env }}.tfvars in $(pwd)"
+          ls -l
+
       - name: Terraform Format Check
         working-directory: envs/${{ matrix.env }}
         if: github.event_name != 'workflow_dispatch' || matrix.env == github.event.inputs.environment
