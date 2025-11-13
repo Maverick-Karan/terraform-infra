@@ -32,7 +32,7 @@ permissions:
 jobs:
   terraform:
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_dispatch' || matrix.env == github.event.inputs.environment
+
     env:
       AWS_ACCOUNT_ID_DEV: ${{ secrets.AWS_ACCOUNT_ID_DEV }}
       AWS_ACCOUNT_ID_PROD: ${{ secrets.AWS_ACCOUNT_ID_PROD }}
@@ -46,31 +46,42 @@ jobs:
             role_name: TerraformProdRole
 
     steps:
+      - name: Filter by Environment (skip non-selected)
+        if: github.event_name != 'workflow_dispatch' || matrix.env == github.event.inputs.environment
+        run: echo "Running for ${{ matrix.env }} environment"
+
       - name: Checkout code
+        if: github.event_name != 'workflow_dispatch' || matrix.env == github.event.inputs.environment
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
+        if: github.event_name != 'workflow_dispatch' || matrix.env == github.event.inputs.environment
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ matrix.env == 'dev' && env.AWS_ACCOUNT_ID_DEV || env.AWS_ACCOUNT_ID_PROD }}:role/${{ matrix.role_name }}
           aws-region: us-east-1
 
       - name: Setup Terraform
+        if: github.event_name != 'workflow_dispatch' || matrix.env == github.event.inputs.environment
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.5.0
 
       - name: Terraform Format Check
+        if: github.event_name != 'workflow_dispatch' || matrix.env == github.event.inputs.environment
         run: terraform fmt -check -recursive
         continue-on-error: true
 
       - name: Terraform Init
+        if: github.event_name != 'workflow_dispatch' || matrix.env == github.event.inputs.environment
         run: terraform init
 
       - name: Terraform Validate
+        if: github.event_name != 'workflow_dispatch' || matrix.env == github.event.inputs.environment
         run: terraform validate
 
       - name: Terraform Plan
+        if: github.event_name != 'workflow_dispatch' || matrix.env == github.event.inputs.environment
         id: plan
         run: terraform plan -var-file=${{ matrix.env }}.tfvars -no-color -out=tfplan | tee plan.txt
 
@@ -80,12 +91,11 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const planOutput = fs.readFileSync('envs/${{ matrix.env }}/plan.txt', 'utf8');
+            const planOutput = fs.readFileSync(`envs/${{ matrix.env }}/plan.txt`, 'utf8');
             const body = `#### Terraform Plan for \`${{ matrix.env }}\` 📖
             \`\`\`hcl
             ${planOutput}
             \`\`\`
-            
             *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -98,11 +108,14 @@ jobs:
         if: matrix.env == 'dev' && github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform apply -auto-approve tfplan
 
-      - name: Terraform Apply (Prod - Manual via Workflow Dispatch)
+      - name: Terraform Apply (Dev - Manual)
+        if: matrix.env == 'dev' && github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: terraform apply -auto-approve tfplan
+
+      - name: Terraform Apply (Prod - Manual)
         if: matrix.env == 'prod' && github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
         run: terraform apply -auto-approve tfplan
 
       - name: Output ECR URLs
         if: steps.plan.outcome == 'success'
         run: terraform output -json
-
