@@ -15,6 +15,10 @@ permissions:
   id-token: write
   contents: read
 
+concurrency:
+  group: terraform-prod
+  cancel-in-progress: false
+
 jobs:
   precheck:
     runs-on: ubuntu-latest
@@ -26,6 +30,7 @@ jobs:
   terraform-prod:
     needs: precheck
     runs-on: ubuntu-latest
+    timeout-minutes: 40
 
     env:
       ENV_NAME: prod
@@ -50,9 +55,23 @@ jobs:
         working-directory: envs/${{ env.ENV_NAME }}
         run: terraform fmt -check -recursive
 
+      - name: Security Scan with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: envs/${{ env.ENV_NAME }}
+          exit-code: 1
+          ignore-unfixed: true
+
+      - name: Cache Terraform Providers
+        uses: actions/cache@v4
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-terraform-${{ env.ENV_NAME }}-${{ hashFiles('modules/**', 'envs/${{ env.ENV_NAME }}/*.tf') }}
+
       - name: Terraform Init
         working-directory: envs/${{ env.ENV_NAME }}
-        run: terraform init
+        run: terraform init -plugin-dir ~/.terraform.d/plugin-cache
 
       - name: Terraform Validate
         working-directory: envs/${{ env.ENV_NAME }}
@@ -62,6 +81,32 @@ jobs:
         working-directory: envs/${{ env.ENV_NAME }}
         run: terraform plan -var-file=${{ env.ENV_NAME }}.tfvars -out=tfplan
 
+      - name: Save Plan Output
+        if: github.event_name == 'pull_request'
+        working-directory: envs/${{ env.ENV_NAME }}
+        run: terraform show -no-color tfplan > plan.txt
+
+      - name: Comment PR with Plan
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('envs/${{ env.ENV_NAME }}/plan.txt', 'utf8');
+            const body = `### Terraform Plan for **${{ env.ENV_NAME }}**\n\n\`\`\`hcl\n${plan}\n\`\`\``;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Upload Terraform Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-${{ env.ENV_NAME }}
+          path: envs/${{ env.ENV_NAME }}/tfplan
+
       - name: Terraform Apply
         if: github.event.inputs.action == 'apply'
         working-directory: envs/${{ env.ENV_NAME }}
@@ -70,3 +115,15 @@ jobs:
       - name: Terraform Outputs
         working-directory: envs/${{ env.ENV_NAME }}
         run: terraform output -json
+
+      - name: Notify Slack on Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": ":warning: *Terraform Deployment Failed* for `${{ env.ENV_NAME }}`\nRepo: `${{ github.repository }}`\nRun: `${{ github.run_id }}`\nCommit: `${{ github.sha }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>`"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
