@@ -2,21 +2,12 @@ name: Terraform Plan
 
 on:
   pull_request:
-    branches: [main]
     paths:
       - 'live/**'
       - 'modules/**'
       - '.github/workflows/terraform-plan.yml'
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Environment'
-        required: true
-        type: choice
-        options:
-          - dev
-          - stage
-          - prod
       layer:
         description: 'Layer'
         required: true
@@ -32,59 +23,54 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: terraform-plan
+  group: terraform-plan-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
+  detect-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      env: ${{ steps.detect.outputs.env }}
+      account_id: ${{ steps.detect.outputs.account_id }}
+      role_name: ${{ steps.detect.outputs.role_name }}
+    steps:
+      - name: Detect environment from branch
+        id: detect
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          if [[ "$BRANCH" == "dev" ]] || [[ "${{ github.base_ref }}" == "dev" ]]; then
+            echo "env=dev" >> $GITHUB_OUTPUT
+            echo "account_id=${{ secrets.AWS_ACCOUNT_ID_DEV }}" >> $GITHUB_OUTPUT
+            echo "role_name=TerraformDevRole" >> $GITHUB_OUTPUT
+          elif [[ "$BRANCH" == "stage" ]] || [[ "${{ github.base_ref }}" == "stage" ]]; then
+            echo "env=stage" >> $GITHUB_OUTPUT
+            echo "account_id=${{ secrets.AWS_ACCOUNT_ID_STAGE }}" >> $GITHUB_OUTPUT
+            echo "role_name=TerraformStageRole" >> $GITHUB_OUTPUT
+          elif [[ "$BRANCH" == "main" ]] || [[ "${{ github.base_ref }}" == "main" ]]; then
+            echo "env=prod" >> $GITHUB_OUTPUT
+            echo "account_id=${{ secrets.AWS_ACCOUNT_ID_PROD }}" >> $GITHUB_OUTPUT
+            echo "role_name=TerraformProdRole" >> $GITHUB_OUTPUT
+          else
+            # Default to dev for feature branches
+            echo "env=dev" >> $GITHUB_OUTPUT
+            echo "account_id=${{ secrets.AWS_ACCOUNT_ID_DEV }}" >> $GITHUB_OUTPUT
+            echo "role_name=TerraformDevRole" >> $GITHUB_OUTPUT
+          fi
+
   plan:
+    needs: detect-environment
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       matrix:
-        include:
-          - env: dev
-            layer: platform
-            account_id: ${{ secrets.AWS_ACCOUNT_ID_DEV }}
-            role_name: TerraformDevRole
-          - env: dev
-            layer: data
-            account_id: ${{ secrets.AWS_ACCOUNT_ID_DEV }}
-            role_name: TerraformDevRole
-          - env: dev
-            layer: app
-            account_id: ${{ secrets.AWS_ACCOUNT_ID_DEV }}
-            role_name: TerraformDevRole
-          - env: stage
-            layer: platform
-            account_id: ${{ secrets.AWS_ACCOUNT_ID_STAGE }}
-            role_name: TerraformStageRole
-          - env: stage
-            layer: data
-            account_id: ${{ secrets.AWS_ACCOUNT_ID_STAGE }}
-            role_name: TerraformStageRole
-          - env: stage
-            layer: app
-            account_id: ${{ secrets.AWS_ACCOUNT_ID_STAGE }}
-            role_name: TerraformStageRole
-          - env: prod
-            layer: platform
-            account_id: ${{ secrets.AWS_ACCOUNT_ID_PROD }}
-            role_name: TerraformProdRole
-          - env: prod
-            layer: data
-            account_id: ${{ secrets.AWS_ACCOUNT_ID_PROD }}
-            role_name: TerraformProdRole
-          - env: prod
-            layer: app
-            account_id: ${{ secrets.AWS_ACCOUNT_ID_PROD }}
-            role_name: TerraformProdRole
+        layer: [platform, data, app]
 
     env:
-      ENV_NAME: ${{ matrix.env }}
-      LAYER: ${{ matrix.layer }}
+      ENV_NAME: ${{ needs.detect-environment.outputs.env }}
+      LAYER: ${{ github.event.inputs.layer || matrix.layer }}
       AWS_REGION: us-east-1
-      AWS_ACCOUNT_ID: ${{ matrix.account_id }}
-      ROLE_NAME: ${{ matrix.role_name }}
+      AWS_ACCOUNT_ID: ${{ needs.detect-environment.outputs.account_id }}
+      ROLE_NAME: ${{ needs.detect-environment.outputs.role_name }}
 
     steps:
       - uses: actions/checkout@v4
@@ -142,7 +128,7 @@ jobs:
             const path = `live/${{ env.ENV_NAME }}/${{ env.LAYER }}/plan.txt`;
             if (fs.existsSync(path)) {
               const plan = fs.readFileSync(path, 'utf8');
-              const body = `### Terraform Plan for **${{ env.ENV_NAME }}/${{ env.LAYER }}**\n\n\`\`\`hcl\n${plan}\n\`\`\``;
+              const body = `### Terraform Plan for **${{ env.ENV_NAME }}/${{ env.LAYER }}**\n\nBranch: \`${{ github.head_ref || github.ref_name }}\`\n\n\`\`\`hcl\n${plan}\n\`\`\``;
               github.rest.issues.createComment({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,

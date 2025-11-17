@@ -94,10 +94,12 @@ make apply ENV=dev LAYER=data
 1. **Pull Requests**: 
    - Runs `terraform plan` for all environments and layers
    - Posts plan output as PR comment
+   - Works with any branch name (automatically detected)
 
-2. **Push to Main**:
-   - **Dev**: Automatically runs `terraform apply` for all layers ✅
+2. **Push to Any Branch**:
+   - **Dev**: Automatically runs `terraform apply` for all layers ✅ (when `live/dev/**` changes)
    - **Stage/Prod**: Manual approval required via workflow dispatch 🔒
+   - **Branch-Agnostic**: Works with any branch name (dev, stage, main, feature/*, etc.)
 
 ### Manual Deployment
 
@@ -180,6 +182,16 @@ make clean
 1. Edit `live/<env>/data/<env>.tfvars`
 2. Add service to `services` list
 3. Commit and create PR
+
+## 🌿 Branch Compatibility
+
+This repository is **branch-agnostic** and works with any branch name:
+- ✅ Automatically detects branch name from workflow context
+- ✅ No hardcoded branch restrictions
+- ✅ Works with: `dev`, `stage`, `main`, `master`, `feature/*`, or any custom branch name
+- ✅ Branch name included in artifacts and notifications for traceability
+
+See [BRANCH_COMPATIBILITY.md](BRANCH_COMPATIBILITY.md) for detailed information.
 
 ## 📚 Additional Resources
 

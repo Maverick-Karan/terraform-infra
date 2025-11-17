@@ -6,10 +6,19 @@ on:
       - 'modules/**'
       - 'terratest/**'
   workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch name (optional, defaults to current branch)'
+        required: false
+        type: string
 
 permissions:
   id-token: write
   contents: read
+
+concurrency:
+  group: terratest-${{ github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -22,9 +31,12 @@ jobs:
       AWS_REGION: us-east-1
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID_DEV }}
       ROLE_NAME: TerraformDevRole
+      BRANCH_NAME: ${{ github.event.inputs.branch || github.ref_name }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BRANCH_NAME }}
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -45,4 +57,3 @@ jobs:
       - name: Run Terratest
         working-directory: terratest
         run: go test -v -timeout 30m -run Test${{ matrix.test }}
-

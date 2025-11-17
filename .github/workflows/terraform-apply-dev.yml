@@ -2,12 +2,12 @@ name: Terraform Apply - Dev
 
 on:
   pull_request:
-    branches: [main]
+    branches: [dev]
     paths:
       - 'live/dev/**'
       - 'modules/**'
   push:
-    branches: [main]
+    branches: [dev]
     paths:
       - 'live/dev/**'
       - 'modules/**'
